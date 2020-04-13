@@ -10,6 +10,8 @@ from grid_routes import (
     _process_webrtc_answer,
 )
 
+import syft as sy
+
 
 class GridNetwork(threading.Thread):
 
@@ -20,11 +22,13 @@ class GridNetwork(threading.Thread):
         NODE_EVENTS.WEBRTC_ANSWER: _process_webrtc_answer,
     }
 
-    def __init__(self, node_id: str, **kwargs):
+    def __init__(self, node_id: str, hook, **kwargs):
         threading.Thread.__init__(self)
         self._id = node_id
+        self._hook = hook
         self._connect(**kwargs)
-        self._connection_handler = WebRTCManager(self._ws, self._id)
+        self._worker = sy.VirtualWorker(self._hook, id=self._id)
+        self._connection_handler = WebRTCManager(self._ws, self._worker)
 
     def run(self):
         # Join
@@ -36,16 +40,13 @@ class GridNetwork(threading.Thread):
     def _listen(self):
         while True:
             message = self._ws.recv()
-            msg = json.loads( message)
+            msg = json.loads(message)
             response = self._handle_messages(msg)
-            print("Received: ", message)
-            print("Sended: ", response)
             if response:
                 self._ws.send(json.dumps(response))
 
     def _handle_messages(self, message):
         msg_type = message.get(MSG_FIELD.TYPE, None)
-        print("MSGTYPE: ", msg_type)
         if msg_type in GridNetwork.EVENTS:
             return GridNetwork.EVENTS[msg_type](message, self._connection_handler)
 
@@ -73,6 +74,9 @@ class GridNetwork(threading.Thread):
         }
 
         self._ws.send(json.dumps(forward_payload))
+
+    def host_dataset(self, dataset):
+        return dataset.send(self._worker)
 
     def _join(self):
         # Join into the network

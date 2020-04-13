@@ -1,13 +1,17 @@
 from codes import MSG_FIELD, GRID_EVENTS
 import json
 
+import syft as sy
+
 
 def _monitor(message: dict, conn_handler):
-    response ={MSG_FIELD.TYPE: GRID_EVENTS.MONITOR_ANSWER,
-               MSG_FIELD.NODES: conn_handler.nodes, 
-               MSG_FIELD.MODELS: {},
-               MSG_FIELD.DATASETS: {} }
+    response = {MSG_FIELD.TYPE: GRID_EVENTS.MONITOR_ANSWER}
+
+    response[MSG_FIELD.NODES] = conn_handler.nodes
+    response[MSG_FIELD.MODELS] = {}
+    response[MSG_FIELD.DATASETS] = list(conn_handler.worker._tag_to_object_ids.keys())
     return response
+
 
 def _create_webrtc_scope(message: dict, conn_handler):
     dest = message[MSG_FIELD.FROM]
