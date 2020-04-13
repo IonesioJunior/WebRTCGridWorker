@@ -11,6 +11,7 @@ from grid_routes import (
 )
 
 import syft as sy
+import torch as th
 
 
 class GridNetwork(threading.Thread):
@@ -28,6 +29,7 @@ class GridNetwork(threading.Thread):
         self._hook = hook
         self._connect(**kwargs)
         self._worker = sy.VirtualWorker(self._hook, id=self._id)
+        self._worker.models = {}
         self._connection_handler = WebRTCManager(self._ws, self._worker)
 
     def run(self):
@@ -75,8 +77,15 @@ class GridNetwork(threading.Thread):
 
         self._ws.send(json.dumps(forward_payload))
 
-    def host_dataset(self, dataset):
+    def host_dataset(self, dataset, access="plain-text", privacy="private"):
+        dataset.access = access
+        dataset.privacy = privacy
         return dataset.send(self._worker)
+
+    def host_model(self, model):
+        model.nodes.append(self._worker.id)
+        self._worker.models[model.id] = model
+        return model._model
 
     def _join(self):
         # Join into the network

@@ -1,4 +1,5 @@
 from grid import GridNetwork
+from model import Model
 import time
 import sys
 
@@ -21,4 +22,18 @@ if __name__ == "__main__":
         grid.connect(destination)
 
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
+
+    model = Model(
+        model=None,
+        model_id="mnist",
+        description="Model trained with MNIST dataset",
+        input_size=(10, 10),
+        output_size=(1, 9),
+        iterations=1000,
+        lr=0.001,
+        accuracy=0.85,
+        nodes=[],
+    )
+
+    print(grid.host_model(model))
     print(grid.host_dataset(x))
