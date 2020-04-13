@@ -19,7 +19,14 @@ if __name__ == "__main__":
     grid.start()
 
     if connect:
-        grid.connect(destination)
+        node = grid.connect(destination)
+    else:
+        time.sleep(10)
+        node = grid._connection_handler.get("bill")
+
+    while True:
+        message = input()
+        node.send(message)
 
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
 

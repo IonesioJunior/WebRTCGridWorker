@@ -12,6 +12,7 @@ from grid_routes import (
 
 import syft as sy
 import torch as th
+import time
 
 
 class GridNetwork(threading.Thread):
@@ -76,6 +77,10 @@ class GridNetwork(threading.Thread):
         }
 
         self._ws.send(json.dumps(forward_payload))
+        while not self._connection_handler.get(destination_id):
+            time.sleep(1)
+
+        return self._connection_handler.get(destination_id)
 
     def host_dataset(self, dataset, access="plain-text", privacy="private"):
         dataset.access = access

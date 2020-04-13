@@ -15,6 +15,9 @@ class WebRTCManager:
     def id(self):
         return self.worker.id
 
+    def get(self, node_id: str):
+        return self._connections.get(node_id, None)
+
     def process_answer(self, destination: str, content: str):
         self._connections[destination].set_msg(content)
 

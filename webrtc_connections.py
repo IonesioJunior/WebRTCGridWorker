@@ -10,6 +10,7 @@ from aiortc.contrib.signaling import (
     object_from_string,
 )
 import threading
+import queue
 
 
 class WebRTCConnection(threading.Thread):
@@ -25,6 +26,11 @@ class WebRTCConnection(threading.Thread):
         self._grid = grid_descriptor
         self._msg = ""
         self.worker = syft_worker
+        self._request_pool = queue.Queue()
+        self._response_pool = queue.Queue()
+
+    def send(self, message: str):
+        self._request_pool.put(message)
 
     def run(self):
         signaling = CopyAndPasteSignaling()
@@ -85,10 +91,9 @@ class WebRTCConnection(threading.Thread):
 
         async def send_pings():
             while True:
-                print("Channel state: ", channel.transport.state)
-                print("Sending ping ...")
-                channel.send("ping")
-                await asyncio.sleep(1)
+                if not self._request_pool.empty():
+                    channel.send(self._request_pool.get())
+                await asyncio.sleep(0)
 
         @channel.on("open")
         def on_open():
@@ -96,7 +101,14 @@ class WebRTCConnection(threading.Thread):
 
         @channel.on("message")
         def on_message(message):
-            print("[ " + self._origin + " ]  Receiving msg from " + self._destination)
+            print(
+                "[ "
+                + self._origin
+                + " ]  Receiving msg <"
+                + self._destination
+                + "> "
+                + message
+            )
 
         await pc.setLocalDescription(await pc.createOffer())
         local_description = object_to_string(pc.localDescription)
@@ -123,8 +135,16 @@ class WebRTCConnection(threading.Thread):
         def on_datachannel(channel):
             @channel.on("message")
             def on_message(message):
-                print("[ " + self._origin + "] Replying message")
-                channel.send("pong")
+                if not self._request_pool.empty():
+                    channel.send(self._request_pool.get())
+                print(
+                    "[ "
+                    + self._origin
+                    + " ]  Receiving msg <"
+                    + self._destination
+                    + "> "
+                    + message
+                )
 
         await self.consume_signaling(pc, signaling)
 
