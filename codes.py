@@ -13,9 +13,6 @@ class MSG_FIELD:
 class GRID_EVENTS:
     JOIN = "join"
     FORWARD = "grid-forward"
-    MODEL_METADATA_ANSWER = "get-models-answeer"
-    DATASETS_METADATA_ANSWER = "get-datasets-answer"
-    NODES_METADATA_ANSWER = "get-nodes-answer"
     FORWARD = "forward"
     MONITOR_ANSWER = "monitor-answer"
 
