@@ -2,7 +2,7 @@ import threading
 import websocket
 import json
 from codes import NODE_EVENTS, GRID_EVENTS, MSG_FIELD
-from webrtc_connections import WebRTCManager
+from nodes_manager import WebRTCManager
 from grid_routes import (
     _monitor,
     _create_webrtc_scope,
