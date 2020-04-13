@@ -53,7 +53,7 @@ class WebRTCConnection(threading.Thread):
     async def consume_signaling(self, pc, signaling):
         while True:
             if self._msg == "":
-                await asyncio.sleep(1)
+                await asyncio.sleep(0)
                 continue
 
             obj = object_from_string(self._msg)
