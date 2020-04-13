@@ -24,9 +24,7 @@ if __name__ == "__main__":
         time.sleep(10)
         node = grid._connection_handler.get("bill")
 
-    while True:
-        message = input()
-        node.send(message)
+    node.send("Hello!")
 
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
 

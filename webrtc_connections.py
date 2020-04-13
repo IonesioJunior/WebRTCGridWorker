@@ -133,6 +133,14 @@ class WebRTCConnection(threading.Thread):
 
         @pc.on("datachannel")
         def on_datachannel(channel):
+            async def send_pings():
+                while True:
+                    if not self._request_pool.empty():
+                        channel.send(self._request_pool.get())
+                    await asyncio.sleep(0)
+
+            asyncio.ensure_future(send_pings())
+
             @channel.on("message")
             def on_message(message):
                 if not self._request_pool.empty():
