@@ -11,6 +11,7 @@ from aiortc.contrib.signaling import (
 )
 import threading
 import queue
+import syft as sy
 
 
 class WebRTCConnection(threading.Thread):
@@ -29,8 +30,18 @@ class WebRTCConnection(threading.Thread):
         self._request_pool = queue.Queue()
         self._response_pool = queue.Queue()
 
-    def send(self, message: str):
-        self._request_pool.put(message)
+    @property
+    def id(self):
+        return self._origin
+
+    async def send(self, message):
+        self._request_pool.put(b"01" + message)
+        while self._response_pool.empty():
+            await asyncio.sleep(0)
+        return self._response_pool.get()
+
+    def _recv_msg(self, message):
+        return asyncio.run(self.send(message))
 
     def run(self):
         signaling = CopyAndPasteSignaling()
@@ -101,14 +112,11 @@ class WebRTCConnection(threading.Thread):
 
         @channel.on("message")
         def on_message(message):
-            print(
-                "[ "
-                + self._origin
-                + " ]  Receiving msg <"
-                + self._destination
-                + "> "
-                + message
-            )
+            if message[:2] == b"01":
+                decoded_response = self.worker._recv_msg(message[2:])
+                channel.send(b"02" + decoded_response)
+            else:
+                self._response_pool.put(message[2:])
 
         await pc.setLocalDescription(await pc.createOffer())
         local_description = object_to_string(pc.localDescription)
@@ -143,16 +151,11 @@ class WebRTCConnection(threading.Thread):
 
             @channel.on("message")
             def on_message(message):
-                if not self._request_pool.empty():
-                    channel.send(self._request_pool.get())
-                print(
-                    "[ "
-                    + self._origin
-                    + " ]  Receiving msg <"
-                    + self._destination
-                    + "> "
-                    + message
-                )
+                if message[:2] == b"01":
+                    decoded_response = self.worker._recv_msg(message[2:])
+                    channel.send(b"02" + decoded_response)
+                else:
+                    self._response_pool.put(message[2:])
 
         await self.consume_signaling(pc, signaling)
 

@@ -1,7 +1,8 @@
 from webrtc_connections import WebRTCConnection
+from syft.workers.base import BaseWorker
 
 
-class WebRTCManager:
+class WebRTCManager(BaseWorker):
     def __init__(self, grid_descriptor, syft_worker):
         self._connections = {}
         self._grid = grid_descriptor
@@ -14,6 +15,12 @@ class WebRTCManager:
     @property
     def id(self):
         return self.worker.id
+
+    def _recv_msg(self, message):
+        raise NotImplementedError
+
+    def _send_msg(self, message: bin, location):
+        return asyncio.run(self._connection[location.id].send(message))
 
     def get(self, node_id: str):
         return self._connections.get(node_id, None)
