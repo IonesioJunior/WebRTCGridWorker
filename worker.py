@@ -30,6 +30,8 @@ if __name__ == "__main__":
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
 
     x_s = x.send(node)
+    #    y_s = x_s + x_s
+    #    y_s = x.send(node)
     print("X_S: ", x_s)
 
     model = Model(

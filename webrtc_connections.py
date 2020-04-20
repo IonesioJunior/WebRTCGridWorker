@@ -13,7 +13,7 @@ import threading
 import queue
 import syft as sy
 import torch as th
-
+import time
 from syft.workers.base import BaseWorker
 
 hook = sy.TorchHook(th)
@@ -26,8 +26,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
     def __init__(self, grid_descriptor, worker_id, destination, conn_type):
         threading.Thread.__init__(self)
-        BaseWorker.__init__(self, hook=hook)
-        self.id = worker_id + "rtc"
+        BaseWorker.__init__(self, hook=hook, id=destination)
         self._conn_type = conn_type
         self._origin = worker_id
         self._destination = destination
@@ -36,7 +35,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
         self._request_pool = queue.Queue()
         self._response_pool = queue.Queue()
 
-    async def _send_msg(self, message):
+    async def _send_msg(self, message, location=None):
         self._request_pool.put(b"01" + message)
         while self._response_pool.empty():
             await asyncio.sleep(0)
@@ -45,13 +44,26 @@ class WebRTCConnection(threading.Thread, BaseWorker):
     def _recv_msg(self, message):
         return asyncio.run(self._send_msg(message))
 
-    async def send_msg(self, channel):
+    def send_msg(self, message, location):
+        # Step 1: serialize the message to a binary
+        bin_message = sy.serde.serialize(message)
+
+        # Step 2: send the message and wait for a response
+        bin_response = asyncio.run(self._send_msg(bin_message, location))
+
+        # Step 3: deserialize the response
+        response = sy.serde.deserialize(bin_response)
+
+        return response
+
+    async def send_webrtc_msg(self, channel):
         while True:
             if not self._request_pool.empty():
                 channel.send(self._request_pool.get())
             await asyncio.sleep(0)
 
     def process_msg(self, message, channel):
+        print("Received msg: ", message)
         if message[:2] == b"01":
             decoded_response = self.recv_msg(message[2:])
             channel.send(b"02" + decoded_response)
@@ -117,7 +129,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
         @channel.on("open")
         def on_open():
-            asyncio.ensure_future(self.send_msg(channel))
+            asyncio.ensure_future(self.send_webrtc_msg(channel))
 
         @channel.on("message")
         def on_message(message):
@@ -146,7 +158,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
         @pc.on("datachannel")
         def on_datachannel(channel):
-            asyncio.ensure_future(self.send_msg(channel))
+            asyncio.ensure_future(self.send_webrtc_msg(channel))
 
             @channel.on("message")
             def on_message(message):
