@@ -12,36 +12,51 @@ from aiortc.contrib.signaling import (
 import threading
 import queue
 import syft as sy
+import torch as th
+
+from syft.workers.base import BaseWorker
+
+hook = sy.TorchHook(th)
 
 
-class WebRTCConnection(threading.Thread):
+class WebRTCConnection(threading.Thread, BaseWorker):
 
     OFFER = 1
     ANSWER = 2
 
-    def __init__(self, grid_descriptor, syft_worker, destination, conn_type):
+    def __init__(self, grid_descriptor, worker_id, destination, conn_type):
         threading.Thread.__init__(self)
+        BaseWorker.__init__(self, hook=hook)
+        self.id = worker_id + "rtc"
         self._conn_type = conn_type
-        self._origin = syft_worker.id
+        self._origin = worker_id
         self._destination = destination
         self._grid = grid_descriptor
         self._msg = ""
-        self.worker = syft_worker
         self._request_pool = queue.Queue()
         self._response_pool = queue.Queue()
 
-    @property
-    def id(self):
-        return self._origin
-
-    async def send(self, message):
+    async def _send_msg(self, message):
         self._request_pool.put(b"01" + message)
         while self._response_pool.empty():
             await asyncio.sleep(0)
         return self._response_pool.get()
 
     def _recv_msg(self, message):
-        return asyncio.run(self.send(message))
+        return asyncio.run(self._send_msg(message))
+
+    async def send_msg(self, channel):
+        while True:
+            if not self._request_pool.empty():
+                channel.send(self._request_pool.get())
+            await asyncio.sleep(0)
+
+    def process_msg(self, message, channel):
+        if message[:2] == b"01":
+            decoded_response = self.recv_msg(message[2:])
+            channel.send(b"02" + decoded_response)
+        else:
+            self._response_pool.put(message[2:])
 
     def run(self):
         signaling = CopyAndPasteSignaling()
@@ -100,23 +115,13 @@ class WebRTCConnection(threading.Thread):
         await signaling.connect()
         channel = pc.createDataChannel("chat")
 
-        async def send_pings():
-            while True:
-                if not self._request_pool.empty():
-                    channel.send(self._request_pool.get())
-                await asyncio.sleep(0)
-
         @channel.on("open")
         def on_open():
-            asyncio.ensure_future(send_pings())
+            asyncio.ensure_future(self.send_msg(channel))
 
         @channel.on("message")
         def on_message(message):
-            if message[:2] == b"01":
-                decoded_response = self.worker._recv_msg(message[2:])
-                channel.send(b"02" + decoded_response)
-            else:
-                self._response_pool.put(message[2:])
+            self.process_msg(message, channel)
 
         await pc.setLocalDescription(await pc.createOffer())
         local_description = object_to_string(pc.localDescription)
@@ -141,21 +146,11 @@ class WebRTCConnection(threading.Thread):
 
         @pc.on("datachannel")
         def on_datachannel(channel):
-            async def send_pings():
-                while True:
-                    if not self._request_pool.empty():
-                        channel.send(self._request_pool.get())
-                    await asyncio.sleep(0)
-
-            asyncio.ensure_future(send_pings())
+            asyncio.ensure_future(self.send_msg(channel))
 
             @channel.on("message")
             def on_message(message):
-                if message[:2] == b"01":
-                    decoded_response = self.worker._recv_msg(message[2:])
-                    channel.send(b"02" + decoded_response)
-                else:
-                    self._response_pool.put(message[2:])
+                self.process_msg(message, channel)
 
         await self.consume_signaling(pc, signaling)
 

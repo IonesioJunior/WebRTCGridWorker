@@ -5,6 +5,7 @@ import sys
 
 import syft as sy
 import torch as th
+import asyncio
 
 hook = sy.TorchHook(th)
 
@@ -24,9 +25,12 @@ if __name__ == "__main__":
         time.sleep(10)
         node = grid._connection_handler.get("bill")
 
-    node.send("Hello!")
+    # asyncio.run(node.send(b'Hello!'))
 
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
+
+    x_s = x.send(node)
+    print("X_S: ", x_s)
 
     model = Model(
         model=None,
