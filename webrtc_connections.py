@@ -15,6 +15,7 @@ import syft as sy
 import torch as th
 import time
 from syft.workers.base import BaseWorker
+from syft.messaging.message import SearchMessage
 
 hook = sy.TorchHook(th)
 
@@ -66,6 +67,12 @@ class WebRTCConnection(threading.Thread, BaseWorker):
             channel.send(b"02" + decoded_response)
         else:
             self._response_pool.put(message[2:])
+
+    def search(self, query):
+        message = SearchMessage(query)
+        serialized_message = sy.serde.serialize(message)
+        response = asyncio.run(self._send_msg(serialized_message))
+        return sy.serde.deserialize(response)
 
     # Main
     def run(self):
