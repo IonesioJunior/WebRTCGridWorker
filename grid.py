@@ -24,10 +24,10 @@ class GridNetwork(threading.Thread):
         NODE_EVENTS.WEBRTC_ANSWER: _process_webrtc_answer,
     }
 
-    def __init__(self, node_id: str, **kwargs):
+    def __init__(self, node_id: str, hook, **kwargs):
         threading.Thread.__init__(self)
         self._connect(**kwargs)
-        self._worker = self._update_node_infos(node_id)
+        self._worker = self._update_node_infos(node_id, hook)
         self._worker.models = {}
         self._connection_handler = WebRTCManager(self._ws, self._worker)
 
@@ -38,12 +38,11 @@ class GridNetwork(threading.Thread):
         # Listen
         self._listen()
 
-    def _update_node_infos(self, node_id: str):
-        sy.local_worker.id = node_id
-        sy.local_worker._known_workers[node_id] = sy.local_worker
-        del sy.local_worker._known_workers["me"]
+    def _update_node_infos(self, node_id: str, hook):
+        worker = sy.VirtualWorker(hook, id=node_id)
+        sy.local_worker._known_workers[node_id] = worker
         sy.local_worker.is_client_worker = False
-        return sy.local_worker
+        return worker
 
     def _listen(self):
         while True:
