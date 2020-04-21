@@ -15,8 +15,8 @@ if __name__ == "__main__":
     destination = sys.argv[3]
 
     # args = {"max_size": None, "timeout": 444, "url": "ws://openmined-grid.herokuapp.com"}
-    args = {"max_size": None, "timeout": 444, "url": "ws://localhost:5000"}
-    grid = GridNetwork(node_id, hook, **args)
+    args = {"max_size": None, "timeout": 444, "url": "ws://34.89.48.186"}
+    grid = GridNetwork(node_id, **args)
     grid.start()
 
     if connect:
@@ -30,9 +30,10 @@ if __name__ == "__main__":
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
 
     x_s = x.send(node)
-    #    y_s = x_s + x_s
-    #    y_s = x.send(node)
-    print("X_S: ", x_s)
+
+    for i in range(1000):
+        x_s = x_s + x_s
+        print("X_S: ", x_s)
 
     model = Model(
         model=None,

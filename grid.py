@@ -24,12 +24,10 @@ class GridNetwork(threading.Thread):
         NODE_EVENTS.WEBRTC_ANSWER: _process_webrtc_answer,
     }
 
-    def __init__(self, node_id: str, hook, **kwargs):
+    def __init__(self, node_id: str, **kwargs):
         threading.Thread.__init__(self)
-        self._id = node_id
-        self._hook = hook
         self._connect(**kwargs)
-        self._worker = sy.VirtualWorker(self._hook, id=self._id)
+        self._worker = self._update_node_infos(node_id)
         self._worker.models = {}
         self._connection_handler = WebRTCManager(self._ws, self._worker)
 
@@ -39,6 +37,13 @@ class GridNetwork(threading.Thread):
 
         # Listen
         self._listen()
+
+    def _update_node_infos(self, node_id: str):
+        sy.local_worker.id = node_id
+        sy.local_worker._known_workers[node_id] = sy.local_worker
+        del sy.local_worker._known_workers["me"]
+        sy.local_worker.is_client_worker = False
+        return sy.local_worker
 
     def _listen(self):
         while True:
@@ -62,7 +67,7 @@ class GridNetwork(threading.Thread):
 
     @property
     def id(self):
-        return self._id
+        return self._worker.id
 
     def connect(self, destination_id: str):
         webrtc_request = {
@@ -94,7 +99,10 @@ class GridNetwork(threading.Thread):
 
     def _join(self):
         # Join into the network
-        join_payload = {MSG_FIELD.TYPE: GRID_EVENTS.JOIN, MSG_FIELD.NODE_ID: self._id}
+        join_payload = {
+            MSG_FIELD.TYPE: GRID_EVENTS.JOIN,
+            MSG_FIELD.NODE_ID: self._worker.id,
+        }
         self._ws.send(json.dumps(join_payload))
         response = json.loads(self._ws.recv())
         return response

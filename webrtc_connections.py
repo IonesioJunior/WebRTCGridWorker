@@ -24,52 +24,50 @@ class WebRTCConnection(threading.Thread, BaseWorker):
     OFFER = 1
     ANSWER = 2
 
-    def __init__(self, grid_descriptor, worker_id, destination, conn_type):
+    def __init__(self, grid_descriptor, worker, destination, conn_type):
         threading.Thread.__init__(self)
         BaseWorker.__init__(self, hook=hook, id=destination)
         self._conn_type = conn_type
-        self._origin = worker_id
+        self._origin = worker.id
+        self._worker = worker
         self._destination = destination
         self._grid = grid_descriptor
         self._msg = ""
         self._request_pool = queue.Queue()
         self._response_pool = queue.Queue()
+        self.channel = None
 
+    # Add a new operation on request_pool
     async def _send_msg(self, message, location=None):
         self._request_pool.put(b"01" + message)
         while self._response_pool.empty():
             await asyncio.sleep(0)
         return self._response_pool.get()
 
+    # Client side
+    # Called when someone call syft function locally eg. tensor.send(node)
     def _recv_msg(self, message):
+        """ Quando recebe algo local e quer mandar para o worker remoto.
+            Necessário retorno após envio.
+        """
         return asyncio.run(self._send_msg(message))
 
-    def send_msg(self, message, location):
-        # Step 1: serialize the message to a binary
-        bin_message = sy.serde.serialize(message)
-
-        # Step 2: send the message and wait for a response
-        bin_response = asyncio.run(self._send_msg(bin_message, location))
-
-        # Step 3: deserialize the response
-        response = sy.serde.deserialize(bin_response)
-
-        return response
-
-    async def send_webrtc_msg(self, channel):
+    # Running async all time
+    async def send(self, channel):
         while True:
             if not self._request_pool.empty():
                 channel.send(self._request_pool.get())
             await asyncio.sleep(0)
 
+    # Running async all time
     def process_msg(self, message, channel):
-        print("Received msg: ", message)
         if message[:2] == b"01":
-            decoded_response = self.recv_msg(message[2:])
+            decoded_response = self._worker._recv_msg(message[2:])
             channel.send(b"02" + decoded_response)
         else:
             self._response_pool.put(message[2:])
 
+    # Main
     def run(self):
         signaling = CopyAndPasteSignaling()
         pc = RTCPeerConnection()
@@ -87,6 +85,55 @@ class WebRTCConnection(threading.Thread, BaseWorker):
             loop = asyncio.get_event_loop()
             loop.run_until_complete(pc.close())
             loop.run_until_complete(signaling.close())
+
+    # SERVER
+    async def _set_offer(self, pc, signaling):
+        await signaling.connect()
+        channel = pc.createDataChannel("chat")
+
+        self.channel = channel
+
+        @channel.on("open")
+        def on_open():
+            asyncio.ensure_future(self.send(channel))
+
+        @channel.on("message")
+        def on_message(message):
+            self.process_msg(message, channel)
+
+        await pc.setLocalDescription(await pc.createOffer())
+        local_description = object_to_string(pc.localDescription)
+
+        response = {
+            MSG_FIELD.TYPE: NODE_EVENTS.WEBRTC_OFFER,
+            MSG_FIELD.PAYLOAD: local_description,
+            MSG_FIELD.FROM: self._origin,
+        }
+
+        forward_payload = {
+            MSG_FIELD.TYPE: GRID_EVENTS.FORWARD,
+            MSG_FIELD.DESTINATION: self._destination,
+            MSG_FIELD.CONTENT: response,
+        }
+
+        self._grid.send(json.dumps(forward_payload))
+        await self.consume_signaling(pc, signaling)
+
+    # CLIENT
+    async def _run_answer(self, pc, signaling):
+        await signaling.connect()
+
+        @pc.on("datachannel")
+        def on_datachannel(channel):
+            asyncio.ensure_future(self.send(channel))
+
+            self.channel = channel
+
+            @channel.on("message")
+            def on_message(message):
+                self.process_msg(message, channel)
+
+        await self.consume_signaling(pc, signaling)
 
     async def consume_signaling(self, pc, signaling):
         while True:
@@ -122,49 +169,6 @@ class WebRTCConnection(threading.Thread, BaseWorker):
                 print("Exiting")
                 break
             self._msg = ""
-
-    async def _set_offer(self, pc, signaling):
-        await signaling.connect()
-        channel = pc.createDataChannel("chat")
-
-        @channel.on("open")
-        def on_open():
-            asyncio.ensure_future(self.send_webrtc_msg(channel))
-
-        @channel.on("message")
-        def on_message(message):
-            self.process_msg(message, channel)
-
-        await pc.setLocalDescription(await pc.createOffer())
-        local_description = object_to_string(pc.localDescription)
-
-        response = {
-            MSG_FIELD.TYPE: NODE_EVENTS.WEBRTC_OFFER,
-            MSG_FIELD.PAYLOAD: local_description,
-            MSG_FIELD.FROM: self._origin,
-        }
-
-        forward_payload = {
-            MSG_FIELD.TYPE: GRID_EVENTS.FORWARD,
-            MSG_FIELD.DESTINATION: self._destination,
-            MSG_FIELD.CONTENT: response,
-        }
-
-        self._grid.send(json.dumps(forward_payload))
-        await self.consume_signaling(pc, signaling)
-
-    async def _run_answer(self, pc, signaling):
-        await signaling.connect()
-
-        @pc.on("datachannel")
-        def on_datachannel(channel):
-            asyncio.ensure_future(self.send_webrtc_msg(channel))
-
-            @channel.on("message")
-            def on_message(message):
-                self.process_msg(message, channel)
-
-        await self.consume_signaling(pc, signaling)
 
     def set_msg(self, content: str):
         self._msg = content
