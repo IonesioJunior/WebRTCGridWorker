@@ -41,6 +41,8 @@ class WebRTCConnection(threading.Thread, BaseWorker):
     # Add a new operation on request_pool
     async def _send_msg(self, message, location=None):
         self._request_pool.put(b"01" + message)
+        # Wait
+        # PySyft is a sync library and should wait for this response.
         while self._response_pool.empty():
             await asyncio.sleep(0)
         return self._response_pool.get()
@@ -145,7 +147,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
     async def consume_signaling(self, pc, signaling):
         while True:
             if self._msg == "":
-                await asyncio.sleep(0)
+                await asyncio.sleep(5)
                 continue
 
             obj = object_from_string(self._msg)
