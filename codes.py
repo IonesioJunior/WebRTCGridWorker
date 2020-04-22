@@ -8,6 +8,8 @@ class MSG_FIELD:
     NODES = "nodes"
     MODELS = "models"
     DATASETS = "datasets"
+    CPU = "cpu"
+    MEM_USAGE = "mem_usage"
 
 
 class GRID_EVENTS:
