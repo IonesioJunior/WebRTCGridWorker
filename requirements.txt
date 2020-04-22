@@ -6,3 +6,4 @@ aiortc==0.9.27
 jupyter
 syft==0.2.4
 syft-proto==0.2.9a2
+psutil
