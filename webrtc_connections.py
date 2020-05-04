@@ -16,6 +16,7 @@ import queue
 import time
 from syft.workers.base import BaseWorker
 from syft.messaging.message import SearchMessage
+from syft.exceptions import GetNotPermittedError
 
 hook = sy.TorchHook(th)
 
@@ -24,6 +25,8 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
     OFFER = 1
     ANSWER = 2
+    HOST_REQUEST = b"01"
+    REMOTE_REQUEST = b"02"
 
     def __init__(self, grid_descriptor, worker, destination, conn_type):
         threading.Thread.__init__(self)
@@ -31,6 +34,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
         self._conn_type = conn_type
         self._origin = worker.id
         self._worker = worker
+        self._worker.tensor_requests = []
         self._destination = destination
         self._grid = grid_descriptor
         self._msg = ""
@@ -64,9 +68,15 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
     # Running async all time
     def process_msg(self, message, channel):
-        if message[:2] == b"01":
-            decoded_response = self._worker._recv_msg(message[2:])
-            channel.send(b"02" + decoded_response)
+        if message[:2] == WebRTCConnection.HOST_REQUEST:
+            try:
+                decoded_response = self._worker._recv_msg(message[2:])
+            except GetNotPermittedError as e:
+                message = sy.serde.deserialize(message[2:], worker=self._worker)
+                self._worker.tensor_requests.append(message)
+                decoded_response = sy.serde.serialize(e)
+
+            channel.send(WebRTCConnection.REMOTE_REQUEST + decoded_response)
         else:
             self._response_pool.put(message[2:])
 
