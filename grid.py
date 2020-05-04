@@ -86,9 +86,7 @@ class GridNetwork(threading.Thread):
 
         return self._connection_handler.get(destination_id)
 
-    def host_dataset(self, dataset, access="plain-text", privacy="private"):
-        dataset.access = access
-        dataset.privacy = privacy
+    def host_dataset(self, dataset):
         return dataset.send(self._worker)
 
     def host_model(self, model):
