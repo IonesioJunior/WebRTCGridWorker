@@ -15,7 +15,23 @@ def _monitor(message: dict, conn_handler):
         model_id: model.json() for model_id, model in conn_handler.worker.models.items()
     }
     response[MSG_FIELD.MODELS] = models
-    response[MSG_FIELD.DATASETS] = list(conn_handler.worker._tag_to_object_ids.keys())
+
+    def std_tags(tag):
+        STD_TAGS = [
+            "#fss_eq_plan_1",
+            "#fss_eq_plan_2",
+            "#fss_comp_plan_1",
+            "#fss_comp_plan_2",
+            "#xor_add_1",
+            "#xor_add_2",
+        ]
+        if tag in STD_TAGS:
+            return False
+        return True
+
+    response[MSG_FIELD.DATASETS] = list(
+        filter(std_tags, conn_handler.worker._tag_to_object_ids.keys())
+    )
     return response
 
 
