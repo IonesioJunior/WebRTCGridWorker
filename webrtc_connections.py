@@ -1,6 +1,8 @@
 import asyncio
 import json
 
+import syft as sy
+import torch as th
 from codes import MSG_FIELD, GRID_EVENTS, NODE_EVENTS
 from aiortc import RTCIceCandidate, RTCPeerConnection, RTCSessionDescription
 from aiortc.contrib.signaling import (
@@ -11,8 +13,6 @@ from aiortc.contrib.signaling import (
 )
 import threading
 import queue
-import syft as sy
-import torch as th
 import time
 from syft.workers.base import BaseWorker
 from syft.messaging.message import SearchMessage

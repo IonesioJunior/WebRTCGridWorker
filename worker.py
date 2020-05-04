@@ -15,10 +15,11 @@ if __name__ == "__main__":
     destination = sys.argv[3]
 
     # args = {"max_size": None, "timeout": 444, "url": "ws://openmined-grid.herokuapp.com"}
-    args = {"max_size": None, "timeout": 444, "url": "ws://34.89.48.186"}
-    grid = GridNetwork(node_id, **args)
+    args = {"max_size": None, "timeout": 444, "url": "ws://localhost:5000"}
+    grid = GridNetwork(node_id, hook, **args)
     grid.start()
 
+    """
     if connect:
         node = grid.connect(destination)
     else:
@@ -49,3 +50,4 @@ if __name__ == "__main__":
 
     print(grid.host_model(model))
     print(grid.host_dataset(x))
+    """
