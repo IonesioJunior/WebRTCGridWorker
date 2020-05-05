@@ -41,6 +41,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
         self._request_pool = queue.Queue()
         self._response_pool = queue.Queue()
         self.channel = None
+        self.available = True
 
     # Add a new operation on request_pool
     async def _send_msg(self, message, location=None):
@@ -155,7 +156,8 @@ class WebRTCConnection(threading.Thread, BaseWorker):
         await self.consume_signaling(pc, signaling)
 
     async def consume_signaling(self, pc, signaling):
-        while True:
+
+        while self.available:
             if self._msg == "":
                 await asyncio.sleep(5)
                 continue
@@ -186,8 +188,13 @@ class WebRTCConnection(threading.Thread, BaseWorker):
                 pc.addIceCandidate(obj)
             elif obj is BYE:
                 print("Exiting")
+                self.available = False
                 break
             self._msg = ""
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(pc.close())
+        loop.run_until_complete(signaling.close())
 
     def set_msg(self, content: str):
         self._msg = content
