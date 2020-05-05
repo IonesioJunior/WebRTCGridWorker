@@ -30,6 +30,7 @@ class GridNetwork(threading.Thread):
         self._worker = self._update_node_infos(node_id, hook)
         self._worker.models = {}
         self._connection_handler = WebRTCManager(self._ws, self._worker)
+        self.available = False
 
     def run(self):
         # Join
@@ -38,6 +39,9 @@ class GridNetwork(threading.Thread):
         # Listen
         self._listen()
 
+    def stop(self):
+        self.available = False
+
     def _update_node_infos(self, node_id: str, hook):
         worker = sy.VirtualWorker(hook, id=node_id)
         sy.local_worker._known_workers[node_id] = worker
@@ -45,7 +49,7 @@ class GridNetwork(threading.Thread):
         return worker
 
     def _listen(self):
-        while True:
+        while self.available:
             message = self._ws.recv()
             msg = json.loads(message)
             response = self._handle_messages(msg)
@@ -86,6 +90,11 @@ class GridNetwork(threading.Thread):
 
         return self._connection_handler.get(destination_id)
 
+    def disconnect(self, destination_id: str):
+        _connection = self._connection_handler.get(destination_id)
+        if _connection:
+            _connection.available = False
+
     def host_dataset(self, dataset):
         return dataset.send(self._worker)
 
@@ -102,4 +111,5 @@ class GridNetwork(threading.Thread):
         }
         self._ws.send(json.dumps(join_payload))
         response = json.loads(self._ws.recv())
+        self.available = True
         return response
