@@ -19,23 +19,28 @@ if __name__ == "__main__":
     grid = GridNetwork(node_id, hook, **args)
     grid.start()
 
-    """
     if connect:
         node = grid.connect(destination)
     else:
-        time.sleep(10)
+        time.sleep(5)
         node = grid._connection_handler.get("bill")
-
-    # asyncio.run(node.send(b'Hello!'))
 
     x = th.tensor([1, 2, 3, 4, 5, 6, 7]).tag("#X", "#test").describe("My Little obj")
 
     x_s = x.send(node)
 
-    for i in range(1000):
+    for i in range(10):
         x_s = x_s + x_s
         print("X_S: ", x_s)
 
+    if not connect:
+        print("Disconnecting ... ")
+        node.disconnect()
+    else:
+        time.sleep(15)
+
+    grid.stop()
+    """
     model = Model(
         model=None,
         model_id="mnist",

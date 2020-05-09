@@ -35,12 +35,15 @@ class GridNetwork(threading.Thread):
     def run(self):
         # Join
         self._join()
-
-        # Listen
-        self._listen()
+        try:
+            # Listen
+            self._listen()
+        except OSError:
+            pass
 
     def stop(self):
         self.available = False
+        self._ws.shutdown()
 
     def _update_node_infos(self, node_id: str, hook):
         worker = sy.VirtualWorker(hook, id=node_id)

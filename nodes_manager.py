@@ -26,13 +26,21 @@ class WebRTCManager(BaseWorker):
 
     def process_offer(self, destination: str, content: str):
         self._connections[destination] = WebRTCConnection(
-            self._grid, self.worker, destination, WebRTCConnection.ANSWER
+            self._grid,
+            self.worker,
+            destination,
+            self._connections,
+            WebRTCConnection.ANSWER,
         )
         self._connections[destination].set_msg(content)
         self._connections[destination].start()
 
     def start_offer(self, destination: str):
         self._connections[destination] = WebRTCConnection(
-            self._grid, self.worker, destination, WebRTCConnection.OFFER
+            self._grid,
+            self.worker,
+            destination,
+            self._connections,
+            WebRTCConnection.OFFER,
         )
         self._connections[destination].start()

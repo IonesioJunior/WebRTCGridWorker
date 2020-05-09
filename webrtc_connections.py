@@ -28,7 +28,7 @@ class WebRTCConnection(threading.Thread, BaseWorker):
     HOST_REQUEST = b"01"
     REMOTE_REQUEST = b"02"
 
-    def __init__(self, grid_descriptor, worker, destination, conn_type):
+    def __init__(self, grid_descriptor, worker, destination, connections, conn_type):
         threading.Thread.__init__(self)
         BaseWorker.__init__(self, hook=hook, id=destination)
         self._conn_type = conn_type
@@ -42,10 +42,12 @@ class WebRTCConnection(threading.Thread, BaseWorker):
         self._response_pool = queue.Queue()
         self.channel = None
         self.available = True
+        self.connections = connections
 
     # Add a new operation on request_pool
     async def _send_msg(self, message, location=None):
-        self._request_pool.put(b"01" + message)
+        self._request_pool.put(WebRTCConnection.HOST_REQUEST + message)
+
         # Wait
         # PySyft is a sync library and should wait for this response.
         while self._response_pool.empty():
@@ -58,11 +60,14 @@ class WebRTCConnection(threading.Thread, BaseWorker):
         """ Quando recebe algo local e quer mandar para o worker remoto.
             Necessário retorno após envio.
         """
-        return asyncio.run(self._send_msg(message))
+        if self.available:
+            return asyncio.run(self._send_msg(message))
+        else:  # PySyft's GC delete commands
+            return self._worker._recv_msg(message)
 
     # Running async all time
     async def send(self, channel):
-        while True:
+        while self.available:
             if not self._request_pool.empty():
                 channel.send(self._request_pool.get())
             await asyncio.sleep(0)
@@ -89,22 +94,23 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
     # Main
     def run(self):
-        signaling = CopyAndPasteSignaling()
-        pc = RTCPeerConnection()
+        self.signaling = CopyAndPasteSignaling()
+        self.pc = RTCPeerConnection()
 
         if self._conn_type == WebRTCConnection.OFFER:
             func = self._set_offer
         else:
             func = self._run_answer
 
+        self.loop = asyncio.new_event_loop()
         try:
-            asyncio.run(func(pc, signaling))
-        except KeyboardInterrupt:
-            pass
-        finally:
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(pc.close())
-            loop.run_until_complete(signaling.close())
+            self.loop.run_until_complete(func(self.pc, self.signaling))
+        except Exception:
+            self.loop.run_until_complete(self.pc.close())
+
+            # Stop loop:
+            self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            self.loop.close()
 
     # SERVER
     async def _set_offer(self, pc, signaling):
@@ -157,16 +163,17 @@ class WebRTCConnection(threading.Thread, BaseWorker):
 
     async def consume_signaling(self, pc, signaling):
 
+        # Async keep-alive connection thread
         while self.available:
+            sleep_time = 0
             if self._msg == "":
-                await asyncio.sleep(5)
+                await asyncio.sleep(sleep_time)
                 continue
 
             obj = object_from_string(self._msg)
 
             if isinstance(obj, RTCSessionDescription):
                 await pc.setRemoteDescription(obj)
-
                 if obj.type == "offer":
                     # send answer
                     await pc.setLocalDescription(await pc.createAnswer())
@@ -184,17 +191,13 @@ class WebRTCConnection(threading.Thread, BaseWorker):
                         MSG_FIELD.CONTENT: response,
                     }
                     self._grid.send(json.dumps(forward_payload))
-            elif isinstance(obj, RTCIceCandidate):
-                pc.addIceCandidate(obj)
-            elif obj is BYE:
-                print("Exiting")
-                self.available = False
-                break
+                    sleep_time = 10
             self._msg = ""
+        raise Exception
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(pc.close())
-        loop.run_until_complete(signaling.close())
+    def disconnect(self):
+        self.available = False
+        del self.connections[self._destination]
 
     def set_msg(self, content: str):
         self._msg = content
