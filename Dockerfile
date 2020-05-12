@@ -11,3 +11,9 @@ RUN pip3 install -r ./env/requirements.txt
 
 COPY . /worker
 WORKDIR /worker
+
+# Make the image start the jupyer notebook
+COPY ./entrypoint.sh /worker
+RUN chmod +x /worker/entrypoint.sh
+
+ENTRYPOINT ["sh", "/worker/entrypoint.sh"]
