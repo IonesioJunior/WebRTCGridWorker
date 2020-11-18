@@ -3,7 +3,7 @@ websocket-client==0.57.0
 websockets==8.1
 aioice==0.6.18
 aiortc==0.9.27
-notebook==5.7.8
+notebook==6.1.5
 syft==0.2.4
 syft-proto==0.2.9a2
 psutil
